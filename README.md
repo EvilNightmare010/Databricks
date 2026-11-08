@@ -145,6 +145,20 @@ Crear el job `job_ventas_jjrp` con estas tareas:
 
 Para la ejecución fallida se debe introducir temporalmente una referencia a una columna inexistente en la primera tarea. Después de capturar el fallo, retirar la referencia, guardar el notebook y ejecutar nuevamente hasta obtener un resultado exitoso.
 
+### 7.6 Resultado de la ejecución fallida y explicación del error
+
+En la ejecución controlada, la tarea `cargar_ventas` falló porque se agregó temporalmente la instrucción:
+
+```python
+df_ventas.select("columna_inexistente").count()
+```
+
+La causa se identificó en el historial del job, específicamente en el detalle de la tarea `cargar_ventas`. Databricks reportó un error `UNRESOLVED_COLUMN`, indicando que la columna solicitada no existía dentro del DataFrame. La captura `12_job_detalle_error.png` muestra este mensaje.
+
+La segunda tarea, `transformar_ventas`, no se ejecutó. En el grafo de la ejecución apareció como una tarea con error de dependencia ascendente, porque estaba configurada para ejecutarse únicamente después de que `cargar_ventas` terminara correctamente. Por lo tanto, la dependencia funcionó como se esperaba: el fallo de la primera tarea impidió que la transformación procesara datos incompletos o no generados.
+
+Después de retirar la referencia a `columna_inexistente`, se ejecutó nuevamente el job. En la ejecución final, ambas tareas terminaron satisfactoriamente, como se observa en `13_job_ejecucion_exitosa_final.png`.
+
 ## 8. Ejercicio 4: pipeline declarativo
 
 ### 8.1 Investigación: ¿qué es un pipeline de datos?
@@ -179,6 +193,24 @@ VALUES (1016, DATE '2026-11-07', 'Audífonos', 'Tecnología', 2, CAST(75000.00 A
 
 El valor agregado esperado es `150000.00`. El resumen de la categoría `Tecnología` debe aumentar exactamente en ese valor, siempre que la fila no exista previamente y que el pipeline haya leído la tabla Bronze actualizada.
 
+### 8.5 Comparación del resumen y explicación del resultado
+
+Antes de insertar la venta adicional, la categoría `Tecnología` tenía un valor vendido de `8600000.00` y 6 ventas. Después de insertar la venta `1016` directamente en `ventas_bronze` y actualizar el pipeline, el valor pasó a `8750000.00` y 7 ventas.
+
+La diferencia fue:
+
+```text
+8750000.00 - 8600000.00 = 150000.00
+```
+
+Este resultado coincide exactamente con el valor de la venta agregada:
+
+```text
+cantidad * precio_unitario = 2 * 75000.00 = 150000.00
+```
+
+Por lo tanto, sí coincide con el valor esperado. Esto demuestra que el pipeline leyó la nueva fila de `ventas_bronze`, aplicó las reglas de limpieza y actualizó correctamente la vista materializada por categoría sin ejecutar nuevamente el notebook de carga. La comparación se evidencia en `15_pipeline_resumen_antes.png`, `17_pipeline_resumen_despues.png` y `18_comparacion_pipeline.png`.
+
 ## 9. Evidencias y nombres de capturas
 
 Guardar las imágenes dentro de `evidencias/` con estos nombres:
@@ -205,8 +237,6 @@ Guardar las imágenes dentro de `evidencias/` con estos nombres:
 | `17_pipeline_resumen_despues.png` | Resumen después de insertar la venta adicional |
 | `18_comparacion_pipeline.png` | Comparación que evidencia el incremento de 150000.00 |
 
-No se deben fabricar capturas. Cada imagen debe ser tomada desde la interfaz de Databricks y corresponder con el resultado real de la ejecución.
-
 ## 10. Cibergrafía
 
 1. Databricks. **What is Unity Catalog?** https://docs.databricks.com/aws/en/data-governance/unity-catalog
@@ -214,39 +244,3 @@ No se deben fabricar capturas. Cada imagen debe ser tomada desde la interfaz de 
 3. Apache Spark. **Spark SQL, DataFrames and Datasets Guide.** https://spark.apache.org/docs/latest/sql-programming-guide.html
 4. Databricks. **Lakeflow Jobs.** https://docs.databricks.com/aws/en/jobs/
 5. Databricks. **Lakeflow Spark Declarative Pipelines.** https://docs.databricks.com/aws/en/ldp/
-
-## 11. Lista de comprobación final
-
-- [x] Se reemplazó el catálogo por el catálogo realmente disponible.
-- [x] Se ejecutó correctamente `01_cargar_ventas`.
-- [x] `ventas_bronze` contiene 16 registros antes de la prueba incremental.
-- [x] Se verificaron columnas y tipos en Catalog.
-- [x] `ventas_silver` contiene solo registros válidos y no duplicados.
-- [x] `ventas_por_categoria` fue sobrescrita sin acumular registros al repetir el notebook.
-- [x] El job tiene dos tareas y la dependencia está configurada.
-- [x] Se capturó una ejecución fallida y se explicó el error.
-- [x] Se capturó una ejecución inicial y una ejecución final exitosa.
-- [x] El pipeline muestra las dos vistas materializadas y sus dependencias.
-- [x] Se agregó una fila válida directamente a Bronze sin ejecutar nuevamente el notebook de carga.
-- [x] El resumen posterior aumentó en el valor correcto.
-- [x] Las capturas tienen los nombres definidos en este README.
-- [x] Se actualizaron los resultados numéricos con los valores reales observados en Databricks.
-
-## 12. Resultados finales observados
-
-La ejecución inicial produjo 12 registros válidos en Silver:
-
-| Categoría | Valor total vendido | Cantidad de ventas |
-|---|---:|---:|
-| Oficina | 2240000.00 | 3 |
-| Papelería | 244000.00 | 3 |
-| Tecnología | 8600000.00 | 6 |
-
-Después de insertar directamente en Bronze la venta `1016` (`Audífonos`, categoría `Tecnología`, cantidad `2`, precio unitario `75000.00`) y actualizar el pipeline:
-
-- `pipeline_ventas_limpias` produjo 13 registros.
-- `pipeline_ventas_por_categoria` conservó tres categorías.
-- Tecnología pasó a `8750000.00` y 7 ventas.
-- El incremento fue `150000.00`, exactamente `2 * 75000.00`.
-
-Por lo tanto, la actualización del pipeline coincidió con el valor de la venta agregada y se comprobó que la nueva fila fue leída desde Bronze sin ejecutar nuevamente el notebook de carga.
