@@ -1,0 +1,12 @@
+# Databricks and local tooling
+.databricks/
+.pytest_cache/
+__pycache__/
+*.pyc
+
+# Local secrets and environment files
+.env
+.env.*
+!.env.example
+
+# Keep evidence images under version control.
